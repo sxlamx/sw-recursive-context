@@ -29,18 +29,113 @@ Standard Claude compaction often results in the loss of nuanced project history 
 
 ---
 
-## 🛠 Installation
+## 🛠 Installation (macOS)
 
-### 1. Global Installation (Recommended)
-To use this logic across all your projects:
+### Prerequisites
+- Claude Code CLI installed (`claude --version` to verify)
+- Bash (pre-installed on macOS)
+
+---
+
+### Option 1: Global Install (Recommended)
+Applies to **all your Claude Code projects**.
+
 ```bash
-claude --plugin-dir ~/.claude/plugins/recursive-context
+# 1. Clone the plugin
+git clone https://github.com/sxlamx/sw-recursive-context.git ~/.claude/plugins/recursive-context
+
+# 2. Make the hook executable
+chmod +x ~/.claude/plugins/recursive-context/hooks/stage-compressor.sh
+
+# 3. Install the skill
+mkdir -p ~/.claude/skills/recursive-context
+cp ~/.claude/plugins/recursive-context/skills/memory/SKILL.md \
+   ~/.claude/skills/recursive-context/memory.md
 ```
 
-### 2. Project-Level Installation
-To use this specifically for one repository:
-1. Copy the plugin folder into your repo: `cp -r recursive-context/ <your-repo>/.claude/plugins/`
-2. Update your `.claude/settings.json` to include the plugin path.
+**4. Register the hook** — edit `~/.claude/settings.json`:
+
+> If the file doesn't exist yet, create it with the full content below.
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/plugins/recursive-context/hooks/stage-compressor.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+> If `settings.json` already has a `hooks` key, merge the `SessionStart` array — don't overwrite.
+
+---
+
+### Option 2: Project-Level Install
+Applies to **one repo only**. Run from inside your project root:
+
+```bash
+# 1. Clone the plugin
+git clone https://github.com/sxlamx/sw-recursive-context.git /tmp/recursive-context
+
+# 2. Copy files into project
+mkdir -p .claude/plugins/recursive-context/hooks
+mkdir -p .claude/skills/recursive-context
+cp /tmp/recursive-context/hooks/stage-compressor.sh .claude/plugins/recursive-context/hooks/
+cp /tmp/recursive-context/skills/memory/SKILL.md .claude/skills/recursive-context/memory.md
+chmod +x .claude/plugins/recursive-context/hooks/stage-compressor.sh
+
+# 3. Cleanup temp clone
+rm -rf /tmp/recursive-context
+```
+
+**4. Register the hook** — edit `.claude/settings.json` in your project root:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/plugins/recursive-context/hooks/stage-compressor.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Verify Install
+
+Start a new Claude Code session and check for the context header:
+
+```
+--- RECURSIVE CONTEXT LOADED ---
+(empty on first run — populates after first compression)
+--------------------------------
+```
+
+Or confirm the hook file exists:
+
+```bash
+# Global
+ls ~/.claude/plugins/recursive-context/hooks/stage-compressor.sh
+
+# Project
+ls .claude/plugins/recursive-context/hooks/stage-compressor.sh
+```
 
 ---
 
