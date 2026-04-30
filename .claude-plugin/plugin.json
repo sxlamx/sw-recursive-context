@@ -1,0 +1,18 @@
+{
+  "name": "recursive-context",
+  "version": "1.0.0",
+  "description": "Performs recursive staged context compression.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_DIR\"/hooks/stage-compressor.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
