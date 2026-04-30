@@ -1,7 +1,8 @@
 {
   "name": "recursive-context",
-  "version": "1.0.0",
-  "description": "Performs recursive staged context compression.",
+  "version": "1.1.0",
+  "description": "Production-hardened recursive staged context compression with anchor pinning, micro-snapshotting, and self-correction handshake.",
+  "anchors": [],
   "hooks": {
     "SessionStart": [
       {

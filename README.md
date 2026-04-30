@@ -73,6 +73,36 @@ Add the following line to your `CLAUDE.md` to ensure maximum efficiency:
 
 ---
 
+## Advanced Features (v1.1.0)
+
+### Compression Rules
+The skill uses a **Discard/Transform/Preserve** framework when compressing conversation stages:
+- **Discard:** Politeness filler, syntax error noise, repeated tool outputs, dead-end approaches
+- **Transform:** Long file reads condensed to descriptions, large search results summarized, multi-turn debugging loops collapsed
+- **Preserve:** Verbatim final solutions, architectural "Why" statements, exact error messages and fixes, API schemas, file-change summaries
+
+This prevents the "context drift" where summaries become increasingly vague across stages.
+
+### Anchor Pinning
+Wrap critical information in `<anchor>...</anchor>` tags to protect it from compression:
+
+```
+<anchor>
+DATABASE_URL=postgresql://host:5432/dbname
+JWT_SECRET=algorithm-key-here
+</anchor>
+```
+
+Anything inside `<anchor>` tags is copied verbatim into the next stage summary. Ideal for connection strings, regex patterns, schema definitions, and exact commands.
+
+### Micro-Snapshotting
+After every **2 successful tool actions** (writes, passing tests, commits), the skill triggers an automatic stage fold if meaningful state has changed. This limits data loss to at most 2 actions in the event of a crash or rate limit.
+
+### CLAUDE.md Handshake
+The plugin saves a pre-compression snapshot to `.claude/context/previous_stage.md` before each compression cycle. When Claude realizes it has lost context on a specific file or decision, it actively reads this file to recover the high-fidelity version — turning passive storage into active retrieval.
+
+---
+
 ## ⚠️ Requirements
 *   **Claude Code CLI** (v2.0.0 or higher recommended).
 *   **Bash/Zsh** environment (for the hook scripts).
