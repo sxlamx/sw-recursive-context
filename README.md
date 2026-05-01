@@ -29,11 +29,11 @@ Standard Claude compaction often results in the loss of nuanced project history 
 
 ---
 
-## 🛠 Installation (macOS)
+## 🛠 Installation
 
 ### Prerequisites
 - Claude Code CLI installed (`claude --version` to verify)
-- Bash (pre-installed on macOS)
+- Bash (macOS/Linux) or Git Bash / WSL (Windows)
 
 ---
 
@@ -75,6 +75,45 @@ cp ~/.claude/plugins/recursive-context/skills/memory/SKILL.md \
 ```
 
 > If `settings.json` already has a `hooks` key, merge the `SessionStart` array — don't overwrite.
+
+---
+
+### Option 1b: Global Install (Windows — Git Bash or WSL)
+
+```bash
+# 1. Clone the plugin
+git clone https://github.com/sxlamx/sw-recursive-context.git "$APPDATA/Claude/plugins/recursive-context"
+# Or for WSL: same as macOS/Linux instructions above (use ~/.claude/plugins/...)
+
+# 2. Make the hook executable
+chmod +x "$APPDATA/Claude/plugins/recursive-context/hooks/stage-compressor.sh"
+
+# 3. Install the skill
+mkdir -p "$APPDATA/Claude/skills/recursive-context"
+cp "$APPDATA/Claude/plugins/recursive-context/skills/memory/SKILL.md" \
+   "$APPDATA/Claude/skills/recursive-context/memory.md"
+```
+
+**4. Register the hook** — edit `%APPDATA%\Claude\settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"%APPDATA%/Claude/plugins/recursive-context/hooks/stage-compressor.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+> **Note:** Shell scripts are committed with LF line endings (enforced via `.gitattributes`) so they run correctly in Git Bash and WSL without conversion.
 
 ---
 
