@@ -18,13 +18,14 @@ Standard Claude compaction often results in the loss of nuanced project history 
 ```text
 .
 ├── .claude-plugin/
-│   └── plugin.json          # Manifest registering hooks and skills
+│   └── plugin.json               # Manifest registering hooks and skills
 ├── hooks/
-│   └── stage-compressor.sh  # Script that manages the .md state files
+│   ├── stage-compressor.sh       # SessionStart hook — injects saved state into new sessions
+│   └── session-state-writer.sh   # Stop hook — writes git state to disk at session end
 ├── skills/
 │   └── memory/
-│       └── SKILL.md         # Instructions for Claude on how to summarize
-└── README.md                # You are here
+│       └── SKILL.md              # Instructions for Claude on how to summarize
+└── README.md                     # You are here
 ```
 
 ---
@@ -44,8 +45,9 @@ Applies to **all your Claude Code projects**.
 # 1. Clone the plugin
 git clone https://github.com/sxlamx/sw-recursive-context.git ~/.claude/plugins/recursive-context
 
-# 2. Make the hook executable
+# 2. Make the hooks executable
 chmod +x ~/.claude/plugins/recursive-context/hooks/stage-compressor.sh
+chmod +x ~/.claude/plugins/recursive-context/hooks/session-state-writer.sh
 
 # 3. Install the skill
 mkdir -p ~/.claude/skills/recursive-context
@@ -53,7 +55,7 @@ cp ~/.claude/plugins/recursive-context/skills/memory/SKILL.md \
    ~/.claude/skills/recursive-context/memory.md
 ```
 
-**4. Register the hook** — edit `~/.claude/settings.json`:
+**4. Register the hooks** — edit `~/.claude/settings.json`:
 
 > If the file doesn't exist yet, create it with the full content below.
 
@@ -69,12 +71,24 @@ cp ~/.claude/plugins/recursive-context/skills/memory/SKILL.md \
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/plugins/recursive-context/hooks/session-state-writer.sh"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-> If `settings.json` already has a `hooks` key, merge the `SessionStart` array — don't overwrite.
+> If `settings.json` already has a `hooks` key, merge both the `SessionStart` and `Stop` arrays — don't overwrite.
+
+> **Project scoping:** `session-state-writer.sh` includes a guard at the top that exits early unless a specific file exists (by default `mip/backend/main.py`). Edit this guard to match a file in your own project so the hook only runs where you intend it.
 
 ---
 
@@ -128,14 +142,16 @@ git clone https://github.com/sxlamx/sw-recursive-context.git /tmp/recursive-cont
 mkdir -p .claude/plugins/recursive-context/hooks
 mkdir -p .claude/skills/recursive-context
 cp /tmp/recursive-context/hooks/stage-compressor.sh .claude/plugins/recursive-context/hooks/
+cp /tmp/recursive-context/hooks/session-state-writer.sh .claude/plugins/recursive-context/hooks/
 cp /tmp/recursive-context/skills/memory/SKILL.md .claude/skills/recursive-context/memory.md
 chmod +x .claude/plugins/recursive-context/hooks/stage-compressor.sh
+chmod +x .claude/plugins/recursive-context/hooks/session-state-writer.sh
 
 # 3. Cleanup temp clone
 rm -rf /tmp/recursive-context
 ```
 
-**4. Register the hook** — edit `.claude/settings.json` in your project root:
+**4. Register the hooks** — edit `.claude/settings.json` in your project root:
 
 ```json
 {
@@ -149,10 +165,22 @@ rm -rf /tmp/recursive-context
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/plugins/recursive-context/hooks/session-state-writer.sh"
+          }
+        ]
+      }
     ]
   }
 }
 ```
+
+> **Project scoping:** `session-state-writer.sh` includes a guard that exits early unless a specific sentinel file exists. Edit line 6 of the script to point to a file unique to your project, so the Stop hook only fires in the right repo.
 
 ---
 
@@ -166,15 +194,17 @@ Start a new Claude Code session and check for the context header:
 --------------------------------
 ```
 
-Or confirm the hook file exists:
+Or confirm both hook files exist:
 
 ```bash
 # Global
-ls ~/.claude/plugins/recursive-context/hooks/stage-compressor.sh
+ls ~/.claude/plugins/recursive-context/hooks/
 
 # Project
-ls .claude/plugins/recursive-context/hooks/stage-compressor.sh
+ls .claude/plugins/recursive-context/hooks/
 ```
+
+Both `stage-compressor.sh` and `session-state-writer.sh` should be listed.
 
 ---
 
@@ -186,11 +216,20 @@ ls .claude/plugins/recursive-context/hooks/stage-compressor.sh
 | **Default** | Truncates history or creates a one-time summary. | High risk of "forgetting" early logic. |
 | **Recursive** | Merges current events into a persistent "State Manifest." | Maintains a continuous reasoning chain. |
 
-### The "Janitor" Hook
-The plugin utilizes the `SessionStart` hook. Every time you start a new `claude` instance or a compaction event is triggered, the script:
-*   Checks for `.claude/context/current_state.md`.
-*   If found, it injects the content as a "Prior Knowledge" block before the first user message.
-*   This ensures Claude is always "warmed up" with the latest project status.
+### Two-Hook Pipeline
+
+The plugin uses a **Stop → SessionStart** hook pair to persist and restore session state automatically.
+
+**`session-state-writer.sh` (Stop hook)** — runs when Claude ends a session:
+- Captures current branch, last 15 commits, unstaged file list, and diff stat for the last 3 commits
+- Writes the snapshot to `.claude/context/current_state.md`
+- Backs up the previous snapshot to `.claude/context/previous_stage.md` before overwriting
+- Includes a project scope guard (line 6) — exits early if the sentinel file is absent, so it only fires in the intended repo
+
+**`stage-compressor.sh` (SessionStart hook)** — runs when Claude starts a new session:
+- Checks for `.claude/context/current_state.md`
+- If found, injects the content as a "Prior Knowledge" block before the first user message
+- Ensures Claude is always warmed up with the latest branch and change history
 
 ---
 
